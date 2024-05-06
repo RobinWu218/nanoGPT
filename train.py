@@ -190,6 +190,21 @@ elif init_from.startswith('gpt2'):
 if block_size < model.config.block_size:
     model.crop_block_size(block_size)
     model_args['block_size'] = block_size # so that the checkpoint will have the right value
+
+def nan_hook(self, inp, output):
+    if not isinstance(output, tuple):
+        outputs = [output]
+    else:
+        outputs = output
+
+    for i, out in enumerate(outputs):
+        nan_mask = torch.isnan(out)
+        if nan_mask.any():
+            print("In", self.__class__.__name__)
+            raise RuntimeError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
+
+for submodule in model.modules():
+    submodule.register_forward_hook(nan_hook)
 model.to(device)
 
 # initialize a GradScaler. If enabled=False scaler is a no-op
